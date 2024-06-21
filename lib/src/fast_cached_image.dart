@@ -286,7 +286,7 @@ class _FastCachedImageState extends State<FastCachedImage>
   ///[_loadAsync] Not public API.
   Future<void> _loadAsync(String url, Map<String, dynamic>? headers) async {
     FastCachedImageConfig._checkInit();
-    Uint8List? image = await FastCachedImageConfig._getImage(url);
+    Uint8List? image = await FastCachedImageConfig.getImage(url);
 
     if (!mounted) return;
 
@@ -408,7 +408,7 @@ class FastCachedImageConfig {
     await _clearOldCache(clearCacheAfter);
   }
 
-  static Future<Uint8List?> _getImage(String url) async {
+  static Future<Uint8List?> getImage(String url) async {
     final key = _keyFromUrl(url);
     if (_imageKeyBox!.keys.contains(url) && _imageBox!.containsKey(url)) {
       // Migrating old keys to new keys
@@ -583,7 +583,7 @@ class FastCachedImageProvider extends ImageProvider<NetworkImage>
       assert(key == this);
       Dio dio = Dio();
       FastCachedImageConfig._checkInit();
-      Uint8List? image = await FastCachedImageConfig._getImage(url);
+      Uint8List? image = await FastCachedImageConfig.getImage(url);
       if (image != null) {
         final ui.ImmutableBuffer buffer =
             await ui.ImmutableBuffer.fromUint8List(image);
