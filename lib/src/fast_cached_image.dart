@@ -286,7 +286,7 @@ class _FastCachedImageState extends State<FastCachedImage>
   ///[_loadAsync] Not public API.
   Future<void> _loadAsync(String url, Map<String, dynamic>? headers) async {
     FastCachedImageConfig._checkInit();
-    Uint8List? image = await FastCachedImageConfig.getImage(url);
+    Uint8List? image = await FastCachedImageConfig._getImage(url);
 
     if (!mounted) return;
 
@@ -408,7 +408,49 @@ class FastCachedImageConfig {
     await _clearOldCache(clearCacheAfter);
   }
 
-  static Future<Uint8List?> getImage(String url) async {
+  static Future<Uint8List?> getImageOrDownload(String url,
+      {Map<String, dynamic>? headers}) async {
+    final key = _keyFromUrl(url);
+    if (_imageKeyBox!.keys.contains(url) && _imageBox!.containsKey(url)) {
+      // Migrating old keys to new keys
+      await _replaceImageKey(oldKey: url, newKey: key);
+      await _replaceOldImage(
+          oldKey: url, newKey: key, image: await _imageBox!.get(url));
+    }
+
+    if (_imageKeyBox!.keys.contains(key) && _imageBox!.keys.contains(key)) {
+      Uint8List? data = await _imageBox!.get(key);
+      if (data == null || data.isEmpty) return null;
+
+      return data;
+    } else {
+      // If the image is not in cache, download it
+      try {
+        Dio dio = Dio();
+        final Uri resolved = Uri.base.resolve(url);
+        if (headers != null) dio.options.headers.addAll(headers);
+
+        Response response = await dio.get(
+          url,
+          options: Options(responseType: ResponseType.bytes),
+        );
+
+        final Uint8List bytes = response.data;
+        if (bytes.lengthInBytes == 0) {
+          throw Exception('NetworkImage is an empty file: $resolved');
+        }
+
+        // Save the downloaded image to cache
+        await _saveImage(url, bytes);
+        return bytes;
+      } catch (e) {
+        debugPrint('Error downloading image: $e');
+        return null;
+      }
+    }
+  }
+
+  static Future<Uint8List?> _getImage(String url) async {
     final key = _keyFromUrl(url);
     if (_imageKeyBox!.keys.contains(url) && _imageBox!.containsKey(url)) {
       // Migrating old keys to new keys
@@ -583,7 +625,7 @@ class FastCachedImageProvider extends ImageProvider<NetworkImage>
       assert(key == this);
       Dio dio = Dio();
       FastCachedImageConfig._checkInit();
-      Uint8List? image = await FastCachedImageConfig.getImage(url);
+      Uint8List? image = await FastCachedImageConfig._getImage(url);
       if (image != null) {
         final ui.ImmutableBuffer buffer =
             await ui.ImmutableBuffer.fromUint8List(image);
